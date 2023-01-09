@@ -14,10 +14,11 @@ namespace Miniblog.Core.Services
     using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Xml;
     using System.Xml.Linq;
     using System.Xml.XPath;
 
-    public class FileBlogService : IBlogService
+    public class XmlFileBlogService : IBlogService // PM 20230107 renamed from FileBlogService to XmlFileBlagService
     {
         private const string FILES = "files";
 
@@ -33,7 +34,7 @@ namespace Miniblog.Core.Services
                 "Usage",
                 "SecurityIntelliSenseCS:MS Security rules violation",
                 Justification = "Path not derived from user input.")]
-        public FileBlogService(IWebHostEnvironment env, IHttpContextAccessor contextAccessor)
+        public XmlFileBlogService(IWebHostEnvironment env, IHttpContextAccessor contextAccessor)
         {
             if (env is null)
             {
@@ -256,6 +257,8 @@ namespace Miniblog.Core.Services
                 await doc.SaveAsync(fs, SaveOptions.None, CancellationToken.None).ConfigureAwait(false);
             }
 
+            await this.SaveFilesToDisk(post).ConfigureAwait(false); // PM 20230107 changed existing to post
+
             if (!this.cache.Contains(post))
             {
                 this.cache.Add(post);
@@ -392,6 +395,59 @@ namespace Miniblog.Core.Services
                 LoadTags(post, doc);
                 LoadComments(post, doc);
                 this.cache.Add(post);
+            }
+        }
+
+        private async Task SaveFilesToDisk(Post post)
+        {
+            var imgRegex = new Regex("<img[^>]+ />", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            var base64Regex = new Regex("data:[^/]+/(?<ext>[a-z]+);base64,(?<base64>.+)", RegexOptions.IgnoreCase);
+            var allowedExtensions = new[] {
+              ".jpg",
+              ".jpeg",
+              ".gif",
+              ".png",
+              ".webp"
+            };
+
+            foreach (Match? match in imgRegex.Matches(post.Content))
+            {
+                if (match is null)
+                {
+                    continue;
+                }
+
+                var doc = new XmlDocument();
+                doc.LoadXml($"<root>{match.Value}</root>");
+
+                var img = doc.FirstChild.FirstChild;
+                var srcNode = img.Attributes["src"];
+                var fileNameNode = img.Attributes["data-filename"];
+
+                // The HTML editor creates base64 DataURIs which we'll have to convert to image
+                // files on disk
+                if (srcNode is null || fileNameNode is null)
+                {
+                    continue;
+                }
+
+                var extension = System.IO.Path.GetExtension(fileNameNode.Value);
+
+                // Only accept image files
+                if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var base64Match = base64Regex.Match(srcNode.Value);
+                if (base64Match.Success)
+                {
+                    var bytes = Convert.FromBase64String(base64Match.Groups["base64"].Value);
+                    srcNode.Value = await this.SaveFile(bytes, fileNameNode.Value).ConfigureAwait(false); // PM 20230107 targeting this class (not this.blog)
+
+                    img.Attributes.Remove(fileNameNode);
+                    post.Content = post.Content.Replace(match.Value, img.OuterXml, StringComparison.OrdinalIgnoreCase);
+                }
             }
         }
     }

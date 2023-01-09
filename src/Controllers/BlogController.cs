@@ -241,64 +241,64 @@ namespace Miniblog.Core.Controllers
             existing.Content = post.Content.Trim();
             existing.Excerpt = post.Excerpt.Trim();
 
-            await this.SaveFilesToDisk(existing).ConfigureAwait(false);
+            //await this.SaveFilesToDisk(existing).ConfigureAwait(false);
 
             await this.blog.SavePost(existing).ConfigureAwait(false);
 
             return this.Redirect(post.GetEncodedLink());
         }
 
-        private async Task SaveFilesToDisk(Post post)
-        {
-            var imgRegex = new Regex("<img[^>]+ />", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            var base64Regex = new Regex("data:[^/]+/(?<ext>[a-z]+);base64,(?<base64>.+)", RegexOptions.IgnoreCase);
-            var allowedExtensions = new[] {
-              ".jpg",
-              ".jpeg",
-              ".gif",
-              ".png",
-              ".webp"
-            };
+        //private async Task SaveFilesToDisk(Post post)
+        //{
+        //    var imgRegex = new Regex("<img[^>]+ />", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        //    var base64Regex = new Regex("data:[^/]+/(?<ext>[a-z]+);base64,(?<base64>.+)", RegexOptions.IgnoreCase);
+        //    var allowedExtensions = new[] {
+        //      ".jpg",
+        //      ".jpeg",
+        //      ".gif",
+        //      ".png",
+        //      ".webp"
+        //    };
 
-            foreach (Match? match in imgRegex.Matches(post.Content))
-            {
-                if (match is null)
-                {
-                    continue;
-                }
+        //    foreach (Match? match in imgRegex.Matches(post.Content))
+        //    {
+        //        if (match is null)
+        //        {
+        //            continue;
+        //        }
 
-                var doc = new XmlDocument();
-                doc.LoadXml($"<root>{match.Value}</root>");
+        //        var doc = new XmlDocument();
+        //        doc.LoadXml($"<root>{match.Value}</root>");
 
-                var img = doc.FirstChild.FirstChild;
-                var srcNode = img.Attributes["src"];
-                var fileNameNode = img.Attributes["data-filename"];
+        //        var img = doc.FirstChild.FirstChild;
+        //        var srcNode = img.Attributes["src"];
+        //        var fileNameNode = img.Attributes["data-filename"];
 
-                // The HTML editor creates base64 DataURIs which we'll have to convert to image
-                // files on disk
-                if (srcNode is null || fileNameNode is null)
-                {
-                    continue;
-                }
+        //        // The HTML editor creates base64 DataURIs which we'll have to convert to image
+        //        // files on disk
+        //        if (srcNode is null || fileNameNode is null)
+        //        {
+        //            continue;
+        //        }
 
-                var extension = System.IO.Path.GetExtension(fileNameNode.Value);
+        //        var extension = System.IO.Path.GetExtension(fileNameNode.Value);
 
-                // Only accept image files
-                if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+        //        // Only accept image files
+        //        if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        //        {
+        //            continue;
+        //        }
 
-                var base64Match = base64Regex.Match(srcNode.Value);
-                if (base64Match.Success)
-                {
-                    var bytes = Convert.FromBase64String(base64Match.Groups["base64"].Value);
-                    srcNode.Value = await this.blog.SaveFile(bytes, fileNameNode.Value).ConfigureAwait(false);
+        //        var base64Match = base64Regex.Match(srcNode.Value);
+        //        if (base64Match.Success)
+        //        {
+        //            var bytes = Convert.FromBase64String(base64Match.Groups["base64"].Value);
+        //            srcNode.Value = await this.blog.SaveFile(bytes, fileNameNode.Value).ConfigureAwait(false);
 
-                    img.Attributes.Remove(fileNameNode);
-                    post.Content = post.Content.Replace(match.Value, img.OuterXml, StringComparison.OrdinalIgnoreCase);
-                }
-            }
-        }
+        //            img.Attributes.Remove(fileNameNode);
+        //            post.Content = post.Content.Replace(match.Value, img.OuterXml, StringComparison.OrdinalIgnoreCase);
+        //        }
+        //    }
+        //}
     }
 }
